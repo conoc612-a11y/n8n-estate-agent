@@ -1,0 +1,480 @@
+{
+  "name": "estate-approve",
+  "nodes": [
+    {
+      "id": "b1c2d3e4-0001-4000-8000-000000000001",
+      "name": "WebhookApprove",
+      "parameters": {
+        "httpMethod": "GET",
+        "options": {},
+        "path": "estate-approve",
+        "responseMode": "responseNode"
+      },
+      "position": [
+        200,
+        300
+      ],
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2
+    },
+    {
+      "id": "aa4e9fd2-d727-4134-93dd-c6eb95146565",
+      "name": "ParseQuery",
+      "parameters": {
+        "jsCode": "// pure: ?token=<id>&decision=approve|reject&edit=&reason=\nfunction esc(s) {\n  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\\n/g, '<br>');\n}\nconst q = $input.first().json.query || {};\nconst rid = parseInt(q.token, 10);\nconst decision = String(q.decision || '');\nconst edit = String(q.edit || '').slice(0, 500);\nconst reason = String(q.reason || '').slice(0, 500);\nif (!rid || (decision !== 'approve' && decision !== 'reject')) {\n  return [{ json: { valid: false, html: '<html><head><meta charset=\"utf-8\"></head><body><h2>잘못된 승인 링크</h2><p>token과 decision(approve|reject)이 필요합니다.</p></body></html>' } }];\n}\nreturn [{ json: { valid: true, rid, decision, edit, reason, esc: 0 } }];",
+        "mode": "runOnceForAllItems"
+      },
+      "position": [
+        420,
+        300
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "a5f476b3-7b0b-4d62-970e-6fa0325f49b6",
+      "name": "IF_Valid",
+      "position": [
+        640,
+        300
+      ],
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "b6f0012b-7e0c-453c-92b8-ddd1e06565bc",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals",
+                "name": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "c521eef1-9598-4c15-8a22-9ccaa315bf81",
+      "name": "GetReport",
+      "parameters": {
+        "method": "GET",
+        "url": "={{ \"https://bhgijvaxxjnocgfnaaeu.supabase.co/rest/v1/agent_reports?id=eq.\" + $json.rid + \"&select=id,draft,status\" }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "position": [
+        860,
+        240
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "THVMoTrEvjYMX3i7",
+          "name": "Supabase apikey header"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "0d56c82b-c398-444d-b77a-a952e870c615",
+      "name": "ParseFound",
+      "parameters": {
+        "jsCode": "// pure: branch notfound|already|go-approve|go-reject\nfunction esc(s) {\n  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\\n/g, '<br>');\n}\nconst rows = $input.first().json;\nconst q = $('ParseQuery').first().json;\nconst rep = Array.isArray(rows) ? rows[0] : rows;\nconst wrap = (h) => '<html><head><meta charset=\"utf-8\"></head><body>' + h + '</body></html>';\nif (!rep) return [{ json: { ...q, outcome: 'terminal', html: wrap('<h2>리포트 없음</h2><p>id=' + q.rid + ' 없음.</p>') } }];\nif (rep.status !== 'pending') return [{ json: { ...q, outcome: 'terminal', html: wrap('<h2>이미 처리됨</h2><p>상태=' + esc(rep.status) + '</p>') } }];\nif (q.decision === 'approve') {\n  const final = q.edit ? rep.draft + '\\n\\n[승인자 수정]\\n' + q.edit : rep.draft;\n  return [{ json: { ...q, outcome: 'go-approve', final, html: wrap('<h2>확정됨</h2><p>' + esc(final) + '</p>') } }];\n}\nreturn [{ json: { ...q, outcome: 'go-reject', final: q.reason || '사유 없음', html: wrap('<h2>거절됨</h2><p>' + esc(q.reason || '사유 없음') + '</p>') } }];",
+        "mode": "runOnceForAllItems"
+      },
+      "position": [
+        1080,
+        240
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "f226a8ad-b597-4c1c-a494-4231b79ad0ce",
+      "name": "IF_Approve",
+      "position": [
+        1300,
+        240
+      ],
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "997f0048-f7e4-4951-bb37-91e0614a1bee",
+              "leftValue": "={{ $json.outcome === 'go-approve' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals",
+                "name": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "fa340423-b17b-4a0e-b5ce-596d226fe9a9",
+      "name": "IF_Reject",
+      "position": [
+        1300,
+        460
+      ],
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "18306e0a-5490-4c8c-ba8e-19bb4c744b5d",
+              "leftValue": "={{ $json.outcome === 'go-reject' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals",
+                "name": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "8eea4bac-5ed5-441d-ac9f-667cfb9006ee",
+      "name": "DoApprove",
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ \"https://bhgijvaxxjnocgfnaaeu.supabase.co/rest/v1/agent_reports?id=eq.\" + $json.rid }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={\"Prefer\": \"return=representation\"}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ ({status: \"approved\", final: $json.final}) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "position": [
+        1520,
+        180
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "THVMoTrEvjYMX3i7",
+          "name": "Supabase apikey header"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "6ee6ab64-e82f-40c2-afcd-4aced0264b9e",
+      "name": "LogApprove",
+      "parameters": {
+        "method": "POST",
+        "url": "https://bhgijvaxxjnocgfnaaeu.supabase.co/rest/v1/agent_runs",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={\"Prefer\": \"return=representation\"}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ ({scenario: \"approval\", ms: 0, prompt_tokens: 0, completion_tokens: 0, cost_krw: 0, status: \"approved\", note: \"report=\" + $json.rid}) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "position": [
+        1740,
+        180
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "THVMoTrEvjYMX3i7",
+          "name": "Supabase apikey header"
+        }
+      }
+    },
+    {
+      "id": "c6ac7e52-ff5a-404f-8a93-56157898a8bf",
+      "name": "DoReject",
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ \"https://bhgijvaxxjnocgfnaaeu.supabase.co/rest/v1/agent_reports?id=eq.\" + $json.rid }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={\"Prefer\": \"return=representation\"}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ ({status: \"rejected\", final: $json.final}) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "position": [
+        1520,
+        460
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "THVMoTrEvjYMX3i7",
+          "name": "Supabase apikey header"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "2b7f733e-b4e4-4811-86b2-b1c4e03718ce",
+      "name": "LogReject",
+      "parameters": {
+        "method": "POST",
+        "url": "https://bhgijvaxxjnocgfnaaeu.supabase.co/rest/v1/agent_runs",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={\"Prefer\": \"return=representation\"}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ ({scenario: \"approval\", ms: 0, prompt_tokens: 0, completion_tokens: 0, cost_krw: 0, status: \"rejected\", note: \"report=\" + $json.rid}) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "position": [
+        1740,
+        460
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "THVMoTrEvjYMX3i7",
+          "name": "Supabase apikey header"
+        }
+      }
+    },
+    {
+      "id": "b1c2d3e4-0003-4000-8000-000000000003",
+      "name": "RespondFinal",
+      "parameters": {
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html; charset=utf-8"
+              }
+            ]
+          }
+        },
+        "respondWith": "text",
+        "responseBody": "={{$json.html}}"
+      },
+      "position": [
+        1960,
+        340
+      ],
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    }
+  ],
+  "connections": {
+    "WebhookApprove": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "ParseQuery",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "ParseQuery": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "IF_Valid",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "IF_Valid": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "GetReport",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "index": 0,
+            "node": "RespondFinal",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "GetReport": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "ParseFound",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "ParseFound": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "IF_Approve",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "IF_Approve": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "DoApprove",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "index": 0,
+            "node": "IF_Reject",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "DoApprove": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "LogApprove",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "LogApprove": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "RespondFinal",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "IF_Reject": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "DoReject",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "index": 0,
+            "node": "RespondFinal",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "DoReject": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "LogReject",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "LogReject": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "RespondFinal",
+            "type": "main"
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

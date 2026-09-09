@@ -49,7 +49,15 @@
 | 5 | `recall_reports`가 항상 빈손 | region을 `lawd/ymd`로 저장하고 `eq(lawd)`로 조회 → 절대 안 맞음 | `like(lawd/*)` prefix 조회로 수정 |
 | 6 | `DEAL_YMD=202508` 요청에 2025-08 행 반환 | Dev API 실측 (`dealYear=2025`). 데이터 빈티지 주의 | 평가 수치 해석 시 기록 (코드 변경 없음) |
 
-## 6. 한계 (다음 사이클)
+## 7. 호스티드 검증 (n8n.vibemakers.kr, 2026-09-09)
+
+- `estate-report` → report 17·18·19·20 전부 `pending_approval` →
+  `estate-approve` → DB `approved` 대조. executions 전부 success.
+- 증거: `hosted_*.json`·`eval/approve_hosted.html`(상태=approved)·
+  `eval/shots/approve_hosted.png`.
+- quirk: 승인 첫 호출 응답 본문이 빈다 (실행 성공, 두 번째부터 정상 HTML).
+
+## 8. 한계 (다음 사이클)
 
 - `trace`는 report 13부터 `payload.trace`에 저장된다. 평가 10건(3~12)은 n8n Executions 목록에서 단계별 입출력을 확인해야 한다.
 - PRD의 월 $5 상한·25분 trial은 강제 로직이 아니라 운용 기준이다 (8회 반복·60초 OpenAI 타임아웃으로 무한루프만 차단). 강제 한도가 필요하면 Save Pending 앞에 누적 비용 조회 노드를 둔다.

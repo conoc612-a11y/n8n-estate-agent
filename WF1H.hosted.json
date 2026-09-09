@@ -1,0 +1,766 @@
+{
+  "name": "estate-report",
+  "nodes": [
+    {
+      "id": "a1b2c3d4-0001-4000-8000-000000000001",
+      "name": "WebhookIn",
+      "parameters": {
+        "httpMethod": "POST",
+        "options": {},
+        "path": "estate-report",
+        "responseMode": "responseNode"
+      },
+      "position": [
+        180,
+        300
+      ],
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2
+    },
+    {
+      "id": "a1b2c3d4-0002-4000-8000-000000000002",
+      "name": "ScheduleWeekly",
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "triggerAtDay": [
+                1
+              ],
+              "triggerAtHour": 9,
+              "weeksInterval": 1
+            }
+          ]
+        }
+      },
+      "position": [
+        180,
+        480
+      ],
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2
+    },
+    {
+      "id": "a1b2c3d4-0003-4000-8000-000000000003",
+      "name": "Normalize",
+      "parameters": {
+        "jsCode": "// Webhook body or schedule default -> {lawd_cd, deal_ymd, apt, memo, prompt_version}\nconst b = ($input.first().json.body) || $input.first().json || {};\nconst now = new Date();\nconst prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);\nconst ymd = String(prev.getFullYear()) + String(prev.getMonth() + 1).padStart(2, '0');\nreturn [{ json: {\n  lawd_cd: String(b.lawd_cd || '11680'),\n  deal_ymd: String(b.deal_ymd || ymd),\n  apt: b.apt ? String(b.apt) : '',\n  memo: b.memo ? String(b.memo) : '',\n  prompt_version: b.prompt_version === 'v2' ? 'v2' : 'v1',\n  scenario: b.scenario ? String(b.scenario) : ''\n}}];",
+        "mode": "runOnceForAllItems"
+      },
+      "position": [
+        400,
+        360
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "6e6c5161-d27d-43be-a074-490a34553080",
+      "name": "FetchRTMS",
+      "parameters": {
+        "method": "GET",
+        "url": "https://apis.data.go.kr/1613000/RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "LAWD_CD",
+              "value": "={{ $json.lawd_cd }}"
+            },
+            {
+              "name": "DEAL_YMD",
+              "value": "={{ $json.deal_ymd }}"
+            },
+            {
+              "name": "numOfRows",
+              "value": "=100"
+            },
+            {
+              "name": "pageNo",
+              "value": "=1"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 25000,
+          "response": {
+            "response": {
+              "responseFormat": "text",
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "position": [
+        620,
+        360
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "fJUUxrA3i4lklMn7",
+          "name": "DGK serviceKey query"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "733dcd0f-9677-4562-8378-676a5078e2f6",
+      "name": "ParseStats",
+      "parameters": {
+        "jsCode": "// pure: RTMS XML text -> rows -> stats (00/000 success, else empty-hand fallback)\nfunction pick(xml, tag) {\n  const m = xml.match(new RegExp('<' + tag + '>([\\\\s\\\\S]*?)</' + tag + '>'));\n  return m ? m[1].trim() : '';\n}\nconst fr = $('FetchRTMS').first().json;\nconst p = $('Normalize').first().json;\nconst xml = fr.body || '';\nlet rows = [], total = 0, fetchError = '';\nif (fr.statusCode !== 200) {\n  fetchError = 'HTTP' + fr.statusCode + ' ' + String(xml).slice(0, 120);\n} else if (!['00', '000'].includes(pick(xml, 'resultCode'))) {\n  fetchError = 'resultCode=' + pick(xml, 'resultCode');\n} else {\n  const items = [];\n  for (const b of xml.split('<item>').slice(1)) {\n    const body = b.split('</item>')[0];\n    items.push({\n      apt: pick(body, 'aptNm'), dong: pick(body, 'umdNm'),\n      area: parseFloat(pick(body, 'excluUseAr')) || 0,\n      price: parseInt(String(pick(body, 'dealAmount')).replace(/[^0-9]/g, ''), 10) || 0,\n      date: pick(body, 'dealYear') + '.' + pick(body, 'dealMonth') + '.' + pick(body, 'dealDay'),\n      floor: pick(body, 'floor')\n    });\n  }\n  total = parseInt(pick(xml, 'totalCount'), 10) || items.length;\n  rows = p.apt ? items.filter(x => (x.apt || '').includes(p.apt)) : items;\n}\nconst prices = rows.map(x => x.price).filter(x => x > 0).sort((a, b) => a - b);\nconst sum = prices.reduce((a, b) => a + b, 0);\nconst stats = {\n  count: rows.length, total,\n  avg: prices.length ? Math.round(sum / prices.length) : 0,\n  median: prices.length ? prices[Math.floor(prices.length / 2)] : 0,\n  min: prices.length ? prices[0] : 0, max: prices.length ? prices[prices.length - 1] : 0,\n  fetchError\n};\nreturn [{ json: { ...p, rows: rows.slice(0, 60), stats } }];",
+        "mode": "runOnceForAllItems"
+      },
+      "position": [
+        840,
+        360
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "2f26300f-d598-41e9-b832-6ed59c79f26d",
+      "name": "BuildBrief",
+      "parameters": {
+        "jsCode": "// pure: agent state init (max 8 iterations, usage/cost tracked, trace saved)\nconst p = $input.first().json;\nconst SYS_V1 = '너는 한국 아파트 실거래 브리핑 작성자다. 주어진 통계와 표본을 읽고 거래동향을 한 단락으로 요약하라. 숫자를 지어내지 마라. 전망이나 추천을 덧붙이지 마라. 표본이 0건이면 자료 없음이라 쓰고 끝내라.';\nconst SYS_V2 = '너는 한국 아파트 실거래 브리핑 작성자다. 순서대로 쓴다. (1) 핵심 한 줄: 평균가·중앙값·거래건수. (2) 표본 0건이면 자료 없음이라 쓰고 가능한 원인 한 줄. (3) 5건 이상이면 급등·급매 주목 매물을 각 한 줄. 숫자는 주어진 것만 쓰고 과장 표현 금지.';\nconst brief = '지역=' + p.lawd_cd + ' 연월=' + p.deal_ymd + (p.apt ? ' 단지=' + p.apt : '')\n  + '\\n[통계] ' + JSON.stringify(p.stats)\n  + '\\n[표본상위5] ' + JSON.stringify((p.rows || []).slice(0, 5))\n  + (p.memo ? '\\n[메모] ' + p.memo : '');\nreturn [{ json: { ...p, sys: p.prompt_version === 'v2' ? SYS_V2 : SYS_V1, brief, t0: Date.now(), iter: 0, trace: [], useP: 0, useC: 0, lastObs: '', action: '', actionArg: null, draft: '', done: false } }];",
+        "mode": "runOnceForAllItems"
+      },
+      "position": [
+        1060,
+        360
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "8d66c419-ac5b-47a0-92c8-d88e61490b62",
+      "name": "LoopIter",
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "position": [
+        1280,
+        360
+      ],
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3
+    },
+    {
+      "id": "953931ea-9a7a-4e2b-a99e-0f92cd7741da",
+      "name": "ChatBody",
+      "parameters": {
+        "jsCode": "// pure: build chat prompt for this iteration\nconst s = $input.first().json;\nconst ask = s.iter === 0\n  ? s.brief + '\\n\\n위 자료로 브리핑 초안을 써라. 전월 비교가 필요하면 TOOL:fetch_month:LAWD,YYYYMM 로 조회하고, 과거 리포트가 필요하면 TOOL:recall_reports 로 조회하라. 도구가 필요 없으면 바로 초안을 써라.'\n  : '관찰: ' + s.lastObs + '\\n위 결과를 반영해 다음 행동을 정하라. 초안이 완성됐으면 초안만 출력하고 TOOL을 부르지 마라.';\nreturn [{ json: { ...s, chatBody: { model: 'gpt-4o-mini', temperature: 0.2, max_tokens: 600, messages: [{ role: 'system', content: s.sys }, { role: 'user', content: ask }] } } }];",
+        "mode": "runOnceForAllItems"
+      },
+      "position": [
+        1280,
+        560
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "96838a55-a47b-4eef-ae99-8329ef5e1a63",
+      "name": "Chat",
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.chatBody }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "position": [
+        1500,
+        560
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "x2YmfAbalR5ygCWu",
+          "name": "OPENAI bearer"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "65c6f64f-79e7-4ba7-aabd-6f0f78c9bd8a",
+      "name": "ParseReply",
+      "parameters": {
+        "jsCode": "// pure: model reply -> action(fetch_month|recall_reports|finish), usage totals\nconst out = $input.first().json;\nconst s = $('ChatBody').first().json;\nif (!out.choices || !out.choices[0]) throw new Error('openai bad response ' + JSON.stringify(out).slice(0, 200));\nconst text = out.choices[0].message.content;\nconst u = out.usage || {};\nconst useP = s.useP + (u.prompt_tokens || 0), useC = s.useC + (u.completion_tokens || 0);\nconst line = (text || '').trim().split('\\n')[0] || '';\nlet action = 'finish', actionArg = null, draft = '';\nconst m1 = line.match(/^TOOL:fetch_month:(\\S+)/);\nconst m2 = /^TOOL:recall_reports/.test(line);\nif (m1) {\n  const parts = (m1[1] || '').split(',');\n  action = 'fetch_month';\n  actionArg = { lawd: parts[0] || s.lawd_cd, ymd: parts[1] || s.deal_ymd };\n} else if (m2) {\n  action = 'recall_reports';\n  actionArg = { lawd: s.lawd_cd };\n} else {\n  draft = text;\n}\nconst trace = s.trace.concat([{ i: s.iter, tool: action === 'finish' ? 'finish' : action }]);\nlet done = action === 'finish' || s.iter >= 7;\nif (done && !draft) draft = '(초안 생성 실패 — 통계만 전달)';\nreturn [{ json: { ...s, useP, useC, action, actionArg, draft, trace, done, lastObs: '' } }];",
+        "mode": "runOnceForAllItems"
+      },
+      "position": [
+        1720,
+        560
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "c9d68d9d-ed25-4d35-bdd8-1353284ab228",
+      "name": "IF_Finish",
+      "position": [
+        1940,
+        560
+      ],
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "4b2fe3a6-8fb6-47d5-a933-f496da8e2c1c",
+              "leftValue": "={{ $json.done }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals",
+                "name": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "302ba348-04bc-4f91-a7f4-cdec6fde2c5f",
+      "name": "IF_IsFetch",
+      "position": [
+        1940,
+        760
+      ],
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "059a4b46-4554-4174-8fb1-0f3277292134",
+              "leftValue": "={{ $json.action === 'fetch_month' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals",
+                "name": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "ee62cc9a-6859-426e-ae3f-7ba490ba57fb",
+      "name": "FetchMonth",
+      "parameters": {
+        "method": "GET",
+        "url": "https://apis.data.go.kr/1613000/RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "LAWD_CD",
+              "value": "={{ $json.actionArg.lawd }}"
+            },
+            {
+              "name": "DEAL_YMD",
+              "value": "={{ $json.actionArg.ymd }}"
+            },
+            {
+              "name": "numOfRows",
+              "value": "=30"
+            },
+            {
+              "name": "pageNo",
+              "value": "=1"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 25000,
+          "response": {
+            "response": {
+              "responseFormat": "text",
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "position": [
+        2160,
+        700
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "fJUUxrA3i4lklMn7",
+          "name": "DGK serviceKey query"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "4647cb7b-6d32-49eb-83d9-6f99f5e45cfa",
+      "name": "RecallReports",
+      "parameters": {
+        "method": "GET",
+        "url": "={{ \"https://bhgijvaxxjnocgfnaaeu.supabase.co/rest/v1/agent_reports?region=like.\" + $json.actionArg.lawd + \"/*&status=eq.approved&order=created_at.desc&limit=2&select=region,final,created_at\" }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "position": [
+        2160,
+        880
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "THVMoTrEvjYMX3i7",
+          "name": "Supabase apikey header"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "98d37e40-5cf5-4e93-b284-f683280788a9",
+      "name": "NoteFetch",
+      "parameters": {
+        "jsCode": "// pure: month-tool observation -> state(iter+1)\nfunction pick(xml, tag) {\n  const m = xml.match(new RegExp('<' + tag + '>([\\\\s\\\\S]*?)</' + tag + '>'));\n  return m ? m[1].trim() : '';\n}\nconst fr = $input.first().json;\nconst s = $('ParseReply').first().json;\nconst xml = fr.body || '';\nconst obs = 'resultCode=' + pick(xml, 'resultCode') + ', items~' + (xml.split('<item>').length - 1);\nconst trace = s.trace.slice(0, -1).concat([{ i: s.iter, tool: 'fetch_month', obs: String(obs).slice(0, 200) }]);\nreturn [{ json: { ...s, iter: s.iter + 1, trace, lastObs: obs } }];",
+        "mode": "runOnceForAllItems"
+      },
+      "position": [
+        2380,
+        700
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "62855328-27f7-49b6-981d-307546af0511",
+      "name": "NoteRecall",
+      "parameters": {
+        "jsCode": "// pure: recall-tool observation -> state(iter+1)\nconst raw = $input.first().json;\nconst s = $('ParseReply').first().json;\nconst arr = Array.isArray(raw) ? raw : (raw && raw.data && Array.isArray(raw.data) ? raw.data : []);\nconst obs = !arr.length ? '승인된 과거 리포트 없음'\n  : arr.map(x => '[' + x.created_at + '] ' + String(x.final || '').slice(0, 300)).join('\\n---\\n');\nconst trace = s.trace.slice(0, -1).concat([{ i: s.iter, tool: 'recall_reports', obs: String(obs).slice(0, 200) }]);\nreturn [{ json: { ...s, iter: s.iter + 1, trace, lastObs: obs } }];",
+        "mode": "runOnceForAllItems"
+      },
+      "position": [
+        2380,
+        880
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "7e72af73-ec77-43e5-871c-74c84607801f",
+      "name": "Finalize",
+      "parameters": {
+        "jsCode": "// pure: save payload (stats+rows+trace)\nconst s = $input.first().json;\nreturn [{ json: { ...s, saveBody: {\n  region: s.lawd_cd + '/' + s.deal_ymd + (s.apt ? '/' + s.apt : ''),\n  payload: { stats: s.stats, rows: (s.rows || []).slice(0, 20), trace: s.trace || [] },\n  draft: s.draft, status: 'pending'\n} } }];",
+        "mode": "runOnceForAllItems"
+      },
+      "position": [
+        2160,
+        560
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "1c649703-3ff7-4cae-995e-181a9caf0214",
+      "name": "SaveReport",
+      "parameters": {
+        "method": "POST",
+        "url": "https://bhgijvaxxjnocgfnaaeu.supabase.co/rest/v1/agent_reports",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={\"Prefer\": \"return=representation\"}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.saveBody }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "position": [
+        2380,
+        560
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "THVMoTrEvjYMX3i7",
+          "name": "Supabase apikey header"
+        }
+      }
+    },
+    {
+      "id": "3b63dd9e-981f-4202-8344-0e7cea9b9d7d",
+      "name": "SaveRun",
+      "parameters": {
+        "jsCode": "// pure: run metrics + approval links (PUBLIC_BASE hardwired for hosted)\nconst rep = $input.first().json;\nconst s = $('Finalize').first().json;\nconst rid = Array.isArray(rep) ? rep[0].id : rep.id;\nconst ms = Date.now() - s.t0;\nconst costKrw = Math.round(((s.useP * 0.15 + s.useC * 0.6) / 1e6) * 1400 * 100) / 100;\nconst base = 'https://n8n.vibemakers.kr/webhook/estate-approve?token=' + rid;\nreturn [{ json: {\n  ...s, rid, ms, costKrw,\n  runBody: { scenario: s.scenario || 'manual', ms, prompt_tokens: s.useP, completion_tokens: s.useC, cost_krw: costKrw, status: 'pending_approval', note: 'prompt=' + s.prompt_version + ' report=' + rid },\n  approve_url: base + '&decision=approve', reject_url: base + '&decision=reject'\n} }];",
+        "mode": "runOnceForAllItems"
+      },
+      "position": [
+        2600,
+        560
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "f2769a9f-898b-4d72-8653-c67f8c1d0239",
+      "name": "PostRun",
+      "parameters": {
+        "method": "POST",
+        "url": "https://bhgijvaxxjnocgfnaaeu.supabase.co/rest/v1/agent_runs",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={\"Prefer\": \"return=representation\"}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.runBody }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "position": [
+        2820,
+        560
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "THVMoTrEvjYMX3i7",
+          "name": "Supabase apikey header"
+        }
+      }
+    },
+    {
+      "id": "3b6b5af3-9d30-49dd-8cbe-0539a2112ea3",
+      "name": "BuildResp",
+      "parameters": {
+        "jsCode": "// pure: webhook response\nconst s = $('SaveRun').first().json;\nreturn [{ json: {\n  status: 'pending_approval', report_id: s.rid,\n  approve_url: s.approve_url, reject_url: s.reject_url,\n  draft_preview: String(s.draft).slice(0, 300),\n  usage: { prompt_tokens: s.useP, completion_tokens: s.useC }, ms: s.ms, costKrw: s.costKrw\n} }];",
+        "mode": "runOnceForAllItems"
+      },
+      "position": [
+        3040,
+        560
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "a1b2c3d4-0008-4000-8000-000000000008",
+      "name": "RespondPending",
+      "parameters": {
+        "options": {},
+        "respondWith": "json",
+        "responseBody": "={{$json}}"
+      },
+      "position": [
+        3260,
+        560
+      ],
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    }
+  ],
+  "connections": {
+    "WebhookIn": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Normalize",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "ScheduleWeekly": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Normalize",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Normalize": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "FetchRTMS",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "FetchRTMS": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "ParseStats",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "ParseStats": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "BuildBrief",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "BuildBrief": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "LoopIter",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "LoopIter": {
+      "main": [
+        [],
+        [
+          {
+            "index": 0,
+            "node": "ChatBody",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "ChatBody": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Chat",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Chat": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "ParseReply",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "ParseReply": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "IF_Finish",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "IF_Finish": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Finalize",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "index": 0,
+            "node": "IF_IsFetch",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "IF_IsFetch": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "FetchMonth",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "index": 0,
+            "node": "RecallReports",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "FetchMonth": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "NoteFetch",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "RecallReports": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "NoteRecall",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "NoteFetch": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "LoopIter",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "NoteRecall": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "LoopIter",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Finalize": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "SaveReport",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "SaveReport": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "SaveRun",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "SaveRun": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "PostRun",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "PostRun": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "BuildResp",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "BuildResp": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "RespondPending",
+            "type": "main"
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

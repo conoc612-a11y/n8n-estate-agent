@@ -9,7 +9,8 @@ https://github.com/conoc612-a11y/n8n-estate-agent
 ## 2. 공개 URL (폼·본문에 함께 적기)
 
 ```
-https://york-appliance-bill-seeking.trycloudflare.com
+https://n8n.vibemakers.kr/webhook/estate-report   (POST, 호스티드 — 상시)
+https://york-appliance-bill-seeking.trycloudflare.com   (로컬 터널 — PC 켜져 있을 때만)
 ```
 
 살아있는지 확인 (둘 다 200이어야 함):

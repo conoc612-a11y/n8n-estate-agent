@@ -67,7 +67,32 @@ curl "http://localhost:5678/webhook/e1a2b3c4-0000-4000-8000-000000000002/webhook
 
 승인 도달 10/10 · 승인→확정 2/2 (100%) · 평균 0.18원/건. 전부 통과.
 
-## 한계와 배포 (2026-09-09 실측)
+## 호스티드 배포 (n8n.vibemakers.kr, 2.36.8 실측 2026-09-09)
+
+- 워크플로: `estate-report` (`pJQQfxYx0TfWLLJ9`) · `estate-approve` (`ymfNww4juKvdwDoW`), 둘 다 active.
+  로컬판을 그대로 올리면 Code 샌드박스에서 `require('https')`가 막혀 죽는다
+  (`Module 'https' is disallowed` 실측) → hosted 전용으로 재조립했다
+  (`WF1H.hosted.json`·`WF2H.hosted.json`, 생성기 `build_hosted.cjs`).
+- hosted 차이점: HTTP 통신은 전부 HTTP Request 노드 + 크리덴셜 3종
+  (`OPENAI bearer` httpBearerAuth · `Supabase apikey header` httpHeaderAuth ·
+  `DGK serviceKey query` httpQueryAuth), 에이전트 루프는 SplitInBatches
+  loop-back (최대 8회, trace·토큰·비용 기록 동일), Code 노드는 순수 연산만.
+  Supabase는 `apikey` 단일 헤더로 된다 (Bearer 단독은 401 실측).
+- 웹훅 경로(호스티드는 clean path):
+  `https://n8n.vibemakers.kr/webhook/estate-report` (POST),
+  `https://n8n.vibemakers.kr/webhook/estate-approve?token=N&decision=approve` (GET).
+- 실측: 브리핑 → report 17·18·19·20 전부 `pending_approval` →
+  승인 → `approved` (DB 대조). 증거 `hosted_*.json`·`eval/approve_hosted.html`·
+  `eval/shots/approve_hosted.png`.
+- quirks: ① 승인 첫 호출의 응답 본문이 비어 온다 (실행은 성공, 두 번째 호출부터
+  정상 HTML — 호스티드 앞단 특성으로 보임). ② 프로젝트 폴더 이동은 API가
+  라이선스로 막혀서 에디터에서 직접: Workflows 목록 → 워크플로 2개 체크 →
+  프로젝트로 드래그.
+- 크리덴셜 값(DGK·Supabase·OpenAI 키)은 API로 등록했고 repo에 없다.
+  재현하려면 `hosted_cred_ids.json`의 ID가 아니라 같은 이름·타입으로 새로
+  만들고 `build_hosted.cjs`의 ID를 교체한다.
+
+## 로컬 터널 배포 (2026-09-09 실측)
 
 - 공개 URL: `https://york-appliance-bill-seeking.trycloudflare.com`
   (cloudflared quick tunnel → 로컬 n8n 5678).
