@@ -1,0 +1,15 @@
+{
+  "status": "pending_approval",
+  "report_id": 8,
+  "approve_url": "http://localhost:5678/webhook/e1a2b3c4-0000-4000-8000-000000000002/webhookapprove/estate-approve?token=8&decision=approve",
+  "reject_url": "http://localhost:5678/webhook/e1a2b3c4-0000-4000-8000-000000000002/webhookapprove/estate-approve?token=8&decision=reject",
+  "draft_preview": "(1) 핵심 한 줄: 2025년 8월 서울 아파트 평균가 247043만원, 중앙값 180000만원, 거래건수 100건.\n\n(2) 표본 0건이면 자료 없음: 해당 지역의 거래 건수가 0건인 경우는 없으며, 현재 100건의 거래가 이루어졌습니다.\n\n(3) 5건 이상이면 급등·급매 주목 매물: \n- 급등 매물: 한신(개포) 아파트, 도곡동, 52.73㎡, 284000만원 (2025.8.5)\n- 급매 매물: 신성아파트101동, 신사동, 59.67㎡, 160000만원 (2025.8.30)",
+  "usage": {
+    "prompt_tokens": 422,
+    "completion_tokens": 169
+  },
+  "ms": 1789,
+  "costKrw": 0.23,
+  "_clientMs": 2385,
+  "_scenario": "s1-gangnam-v2"
+}

@@ -1,0 +1,15 @@
+{
+  "status": "pending_approval",
+  "report_id": 4,
+  "approve_url": "http://localhost:5678/webhook/e1a2b3c4-0000-4000-8000-000000000002/webhookapprove/estate-approve?token=4&decision=approve",
+  "reject_url": "http://localhost:5678/webhook/e1a2b3c4-0000-4000-8000-000000000002/webhookapprove/estate-approve?token=4&decision=reject",
+  "draft_preview": "2025년 8월 송파구(11710) 아파트 실거래 통계에 따르면, 총 100건의 거래가 이루어졌으며, 거래된 아파트의 평균 가격은 169,773천 원, 중위 가격은 150,000천 원으로 나타났습니다. 거래 가격은 최소 19,300천 원에서 최대 500,000천 원까지 다양했습니다. 상위 5건의 거래를 살펴보면, 헬리오시티(가락동, 84.98㎡)가 276,000천 원으로 가장 높은 가격에 거래되었고, 힐스테이트송파위례(장지동, 101.8㎡)는 185,000천 원으로 뒤를 이었습니다. 송파파인타운6단지(장지동, 84.93㎡)는 150",
+  "usage": {
+    "prompt_tokens": 406,
+    "completion_tokens": 248
+  },
+  "ms": 2752,
+  "costKrw": 0.29,
+  "_clientMs": 3098,
+  "_scenario": "s2-songpa-v1"
+}

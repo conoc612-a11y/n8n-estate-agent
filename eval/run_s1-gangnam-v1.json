@@ -1,0 +1,15 @@
+{
+  "status": "pending_approval",
+  "report_id": 3,
+  "approve_url": "http://localhost:5678/webhook/e1a2b3c4-0000-4000-8000-000000000002/webhookapprove/estate-approve?token=3&decision=approve",
+  "reject_url": "http://localhost:5678/webhook/e1a2b3c4-0000-4000-8000-000000000002/webhookapprove/estate-approve?token=3&decision=reject",
+  "draft_preview": "2025년 8월 서울 지역 아파트 거래는 총 100건으로, 거래된 아파트의 평균 가격은 247043만원, 중앙값은 180000만원으로 나타났습니다. 거래 가격은 최소 23500만원에서 최대 1305000만원까지 다양하게 분포하고 있습니다. 상위 5개 거래를 살펴보면, 한신(개포) 아파트가 284000만원으로 가장 높은 가격에 거래되었으며, 신성아파트101동은 160000만원으로 가장 낮은 가격에 거래되었습니다. 이 외에도 삼익대청아파트, 신현대12차, 대치삼성 아파트가 각각 186500만원, 730000만원, 272000만원에 거래",
+  "usage": {
+    "prompt_tokens": 399,
+    "completion_tokens": 163
+  },
+  "ms": 2343,
+  "costKrw": 0.22,
+  "_clientMs": 3020,
+  "_scenario": "s1-gangnam-v1"
+}

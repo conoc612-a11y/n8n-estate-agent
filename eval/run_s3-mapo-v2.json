@@ -1,0 +1,15 @@
+{
+  "status": "pending_approval",
+  "report_id": 10,
+  "approve_url": "http://localhost:5678/webhook/e1a2b3c4-0000-4000-8000-000000000002/webhookapprove/estate-approve?token=10&decision=approve",
+  "reject_url": "http://localhost:5678/webhook/e1a2b3c4-0000-4000-8000-000000000002/webhookapprove/estate-approve?token=10&decision=reject",
+  "draft_preview": "(1) 핵심 한 줄: 2025년 8월 평균가 146,009만원, 중앙값 138,500만원, 거래건수 100건.  \n(2) 표본 0건이 아니므로 자료가 존재합니다.  \n(3) 급등 주목 매물: 마포래미안푸르지오4단지, 230,000만원. 급매 주목 매물: 한림201동, 65,000만원.",
+  "usage": {
+    "prompt_tokens": 431,
+    "completion_tokens": 103
+  },
+  "ms": 1297,
+  "costKrw": 0.18,
+  "_clientMs": 1601,
+  "_scenario": "s3-mapo-v2"
+}

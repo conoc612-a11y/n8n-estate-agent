@@ -1,0 +1,15 @@
+{
+  "status": "pending_approval",
+  "report_id": 5,
+  "approve_url": "http://localhost:5678/webhook/e1a2b3c4-0000-4000-8000-000000000002/webhookapprove/estate-approve?token=5&decision=approve",
+  "reject_url": "http://localhost:5678/webhook/e1a2b3c4-0000-4000-8000-000000000002/webhookapprove/estate-approve?token=5&decision=reject",
+  "draft_preview": "2025년 8월, 지역 11440의 아파트 실거래 통계는 총 100건으로 집계되었으며, 거래 총액은 193억 원에 달합니다. 평균 거래가는 1억 4600만 원, 중위 거래가는 1억 3850만 원으로 나타났습니다. 거래된 아파트 중 최저가는 1610만 원, 최고가는 2억 7950만 원입니다. 상위 5건의 거래를 살펴보면, 성산시영(대우) 1층이 9550만 원에 거래되었고, 한림201동 6층은 6500만 원, 서강예가 4층은 1억 6400만 원에 거래되었습니다. 마포래미안푸르지오4단지 13층은 2억 3000만 원, 마포월드컵제이스카이 ",
+  "usage": {
+    "prompt_tokens": 408,
+    "completion_tokens": 215
+  },
+  "ms": 2222,
+  "costKrw": 0.27,
+  "_clientMs": 2549,
+  "_scenario": "s3-mapo-v1"
+}

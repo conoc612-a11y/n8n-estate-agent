@@ -1,0 +1,15 @@
+{
+  "status": "pending_approval",
+  "report_id": 11,
+  "approve_url": "http://localhost:5678/webhook/e1a2b3c4-0000-4000-8000-000000000002/webhookapprove/estate-approve?token=11&decision=approve",
+  "reject_url": "http://localhost:5678/webhook/e1a2b3c4-0000-4000-8000-000000000002/webhookapprove/estate-approve?token=11&decision=reject",
+  "draft_preview": "(1) 핵심 한 줄: 자료 없음. \n\n(2) 표본 0건이면 자료 없음이라 쓰고 가능한 원인 한 줄: 현재 '없는단지XYZ'에 대한 거래가 없어 자료를 제공할 수 없습니다. 이는 해당 단지의 거래가 이루어지지 않았거나, 시장에서 관심이 적은 경우일 수 있습니다.\n\n(3) 5건 이상이면 급등·급매 주목 매물을 각 한 줄: 해당 사항 없음.",
+  "usage": {
+    "prompt_tokens": 230,
+    "completion_tokens": 101
+  },
+  "ms": 1454,
+  "costKrw": 0.13,
+  "_clientMs": 1813,
+  "_scenario": "s4-empty-v2"
+}

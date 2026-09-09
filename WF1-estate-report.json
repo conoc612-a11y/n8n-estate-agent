@@ -1,0 +1,215 @@
+{
+    "active": true,
+    "connections": {
+        "Approval Link": {
+            "main": [
+                [
+                    {
+                        "index": 0,
+                        "node": "Agent Loop",
+                        "type": "main"
+                    }
+                ]
+            ]
+        },
+        "Collect + Stats": {
+            "main": [
+                [
+                    {
+                        "index": 0,
+                        "node": "Approval Link",
+                        "type": "main"
+                    }
+                ]
+            ]
+        },
+        "Agent Loop": {
+            "main": [
+                [
+                    {
+                        "index": 0,
+                        "node": "Save Pending",
+                        "type": "main"
+                    }
+                ]
+            ]
+        },
+        "Normalize Input": {
+            "main": [
+                [
+                    {
+                        "index": 0,
+                        "node": "Collect + Stats",
+                        "type": "main"
+                    }
+                ]
+            ]
+        },
+        "Save Pending": {
+            "main": [
+                [
+                    {
+                        "index": 0,
+                        "node": "Respond Pending",
+                        "type": "main"
+                    }
+                ]
+            ]
+        },
+        "Schedule Weekly": {
+            "main": [
+                [
+                    {
+                        "index": 0,
+                        "node": "Normalize Input",
+                        "type": "main"
+                    }
+                ]
+            ]
+        },
+        "WebhookIn": {
+            "main": [
+                [
+                    {
+                        "index": 0,
+                        "node": "Normalize Input",
+                        "type": "main"
+                    }
+                ]
+            ]
+        }
+    },
+    "name": "estate-report",
+    "nodes": [
+        {
+            "id": "a1b2c3d4-0001-4000-8000-000000000001",
+            "name": "WebhookIn",
+            "parameters": {
+                "httpMethod": "POST",
+                "options": {},
+                "path": "estate-report",
+                "responseMode": "responseNode"
+            },
+            "position": [
+                180,
+                300
+            ],
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 2
+        },
+        {
+            "id": "a1b2c3d4-0002-4000-8000-000000000002",
+            "name": "Schedule Weekly",
+            "parameters": {
+                "rule": {
+                    "interval": [
+                        {
+                            "field": "weeks",
+                            "triggerAtDay": [
+                                1
+                            ],
+                            "triggerAtHour": 9,
+                            "weeksInterval": 1
+                        }
+                    ]
+                }
+            },
+            "position": [
+                180,
+                480
+            ],
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "typeVersion": 1.2
+        },
+        {
+            "id": "a1b2c3d4-0003-4000-8000-000000000003",
+            "name": "Normalize Input",
+            "parameters": {
+                "jsCode": "// Webhook body or schedule default -> {lawd_cd, deal_ymd, apt, memo, prompt_version}\nconst b = ($input.first().json.body) || $input.first().json || {};\nconst now = new Date();\nconst prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);\nconst ymd = String(prev.getFullYear()) + String(prev.getMonth() + 1).padStart(2, '0');\nreturn [{ json: {\n  lawd_cd: String(b.lawd_cd || '11680'),\n  deal_ymd: String(b.deal_ymd || ymd),\n  apt: b.apt ? String(b.apt) : '',\n  memo: b.memo ? String(b.memo) : '',\n  prompt_version: b.prompt_version === 'v2' ? 'v2' : 'v1',\n  scenario: b.scenario ? String(b.scenario) : ''\n}}];",
+                "mode": "runOnceForAllItems"
+            },
+            "position": [
+                400,
+                360
+            ],
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2
+        },
+        {
+            "id": "a1b2c3d4-0004-4000-8000-000000000004",
+            "name": "Collect + Stats",
+            "parameters": {
+                "jsCode": "// Tool 1 (data fetch) + Tool 3 (calc_stats). RTMS XML -> rows -> stats.\n// Retry 2x, then empty-hand fallback. No secrets leave the server.\nconst DGK = $env.DGK_KEY;\nconst SB_URL = $env.SUPABASE_URL;\nconst SB_KEY = $env.SUPABASE_SERVICE_ROLE_KEY;\n// Code-node sandbox has no fetch/$helpers/process (task-runner vm).\n// Outbound HTTPS via allowlisted require('https') (NODE_FUNCTION_ALLOW_BUILTIN=https).\nconst https = require('https');\nfunction splitUrl(url) {\n  const m = url.match(/^https:\\/\\/([^/]+)(\\/[\\s\\S]*)?$/);\n  if (!m) throw new Error('bad url');\n  return { host: m[1], path: m[2] || '/' };\n}\nfunction httpRaw(method, url, headers, bodyStr, timeoutMs) {\n  const u = splitUrl(url);\n  return new Promise((resolve, reject) => {\n    const req = https.request({ method, hostname: u.host, path: u.path, headers: headers || {} }, (res) => {\n      let data = '';\n      res.setEncoding('utf8');\n      res.on('data', (c) => { data += c; });\n      res.on('end', () => resolve({ status: res.statusCode, body: data }));\n    });\n    req.on('error', reject);\n    req.setTimeout(timeoutMs || 25000, () => { req.destroy(new Error('timeout')); });\n    if (bodyStr !== undefined) req.write(bodyStr);\n    req.end();\n  });\n}\nasync function httpGet(url, timeoutMs) { const r = await httpRaw('GET', url, {}, undefined, timeoutMs); return r.body; }\nasync function httpJson(method, url, headers, bodyObj, timeoutMs) {\n  const r = await httpRaw(method, url, headers, bodyObj === undefined ? undefined : JSON.stringify(bodyObj), timeoutMs);\n  if (r.status >= 400) throw new Error('HTTP' + r.status + ' ' + String(r.body).slice(0, 200));\n  return r.body ? JSON.parse(r.body) : null;\n}\nfunction pick(xml, tag) {\n  const m = xml.match(new RegExp('<' + tag + '>([\\\\s\\\\S]*?)</' + tag + '>'));\n  return m ? m[1].trim() : '';\n}\nasync function fetchRtms(lawd, ymd, rows) {\n  const url = 'https://apis.data.go.kr/1613000/RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev'\n    + '?serviceKey=' + DGK + '&LAWD_CD=' + encodeURIComponent(lawd)\n    + '&DEAL_YMD=' + encodeURIComponent(ymd) + '&numOfRows=' + rows + '&pageNo=1';\n  let last = null;\n  for (let i = 0; i < 3; i++) {\n    try {\n      const xml = await httpGet(url, 25000);\n      if (!['00','000'].includes(pick(xml, 'resultCode'))) { last = new Error('resultCode=' + pick(xml, 'resultCode')); continue; }\n      const items = [];\n      const blocks = xml.split('<item>').slice(1);\n      for (const b of blocks) {\n        const body = b.split('</item>')[0];\n        items.push({\n          apt: pick(body, 'aptNm'), dong: pick(body, 'umdNm'),\n          area: parseFloat(pick(body, 'excluUseAr')) || 0,\n          price: parseInt(String(pick(body, 'dealAmount')).replace(/[^0-9]/g, ''), 10) || 0,\n          date: pick(body, 'dealYear') + '.' + pick(body, 'dealMonth') + '.' + pick(body, 'dealDay'),\n          floor: pick(body, 'floor')\n        });\n      }\n      return { rows: items, total: parseInt(pick(xml, 'totalCount'), 10) || items.length };\n    } catch (e) { last = e; }\n  }\n  return { rows: [], total: 0, fetchError: String(last && last.message || last) };\n}\nconst out = [];\nfor (const it of $input.all()) {\n  const p = it.json;\n  const r = await fetchRtms(p.lawd_cd, p.deal_ymd, 100);\n  let rows = r.rows;\n  if (p.apt) rows = rows.filter(x => (x.apt || '').includes(p.apt));\n  const prices = rows.map(x => x.price).filter(x => x > 0).sort((a, b) => a - b);\n  const sum = prices.reduce((a, b) => a + b, 0);\n  const stats = {\n    count: rows.length, total: r.total,\n    avg: prices.length ? Math.round(sum / prices.length) : 0,\n    median: prices.length ? prices[Math.floor(prices.length / 2)] : 0,\n    min: prices.length ? prices[0] : 0, max: prices.length ? prices[prices.length - 1] : 0,\n    fetchError: r.fetchError || ''\n  };\n  out.push({ json: { ...p, rows: rows.slice(0, 60), stats } });\n}\nreturn out;",
+                "mode": "runOnceForAllItems"
+            },
+            "position": [
+                620,
+                360
+            ],
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2
+        },
+        {
+            "id": "a1b2c3d4-0005-4000-8000-000000000005",
+            "name": "Approval Link",
+            "parameters": {
+                "jsCode": "// pass-through (keeps canvas readable: collect -> link -> agent)\nreturn $input.all();",
+                "mode": "runOnceForAllItems"
+            },
+            "position": [
+                840,
+                360
+            ],
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2
+        },
+        {
+            "id": "a1b2c3d4-0006-4000-8000-000000000006",
+            "name": "Agent Loop",
+            "parameters": {
+                "jsCode": "// ReAct agent (plan -> tool -> observe). Model: OpenAI gpt-4o-mini.\n// Tools: (1) fetch_month re-query, (2) recall_reports memory, (3) finish.\n// Limits: max 8 iterations. Token/cost recorded per run.\nconst OPENAI = $env.OPENAI_API_KEY;\nconst DGK = $env.DGK_KEY;\nconst SB_URL = $env.SUPABASE_URL;\nconst SB_KEY = $env.SUPABASE_SERVICE_ROLE_KEY;\n// Code-node sandbox has no fetch/$helpers/process (task-runner vm).\n// Outbound HTTPS via allowlisted require('https') (NODE_FUNCTION_ALLOW_BUILTIN=https).\nconst https = require('https');\nfunction splitUrl(url) {\n  const m = url.match(/^https:\\/\\/([^/]+)(\\/[\\s\\S]*)?$/);\n  if (!m) throw new Error('bad url');\n  return { host: m[1], path: m[2] || '/' };\n}\nfunction httpRaw(method, url, headers, bodyStr, timeoutMs) {\n  const u = splitUrl(url);\n  return new Promise((resolve, reject) => {\n    const req = https.request({ method, hostname: u.host, path: u.path, headers: headers || {} }, (res) => {\n      let data = '';\n      res.setEncoding('utf8');\n      res.on('data', (c) => { data += c; });\n      res.on('end', () => resolve({ status: res.statusCode, body: data }));\n    });\n    req.on('error', reject);\n    req.setTimeout(timeoutMs || 25000, () => { req.destroy(new Error('timeout')); });\n    if (bodyStr !== undefined) req.write(bodyStr);\n    req.end();\n  });\n}\nasync function httpGet(url, timeoutMs) { const r = await httpRaw('GET', url, {}, undefined, timeoutMs); return r.body; }\nasync function httpJson(method, url, headers, bodyObj, timeoutMs) {\n  const r = await httpRaw(method, url, headers, bodyObj === undefined ? undefined : JSON.stringify(bodyObj), timeoutMs);\n  if (r.status >= 400) throw new Error('HTTP' + r.status + ' ' + String(r.body).slice(0, 200));\n  return r.body ? JSON.parse(r.body) : null;\n}\nconst SYS_V1 = '너는 한국 아파트 실거래 브리핑 작성자다. 주어진 통계와 표본을 읽고 거래동향을 한 단락으로 요약하라. 숫자를 지어내지 마라. 전망이나 추천을 덧붙이지 마라. 표본이 0건이면 자료 없음이라 쓰고 끝내라.';\nconst SYS_V2 = '너는 한국 아파트 실거래 브리핑 작성자다. 순서대로 쓴다. (1) 핵심 한 줄: 평균가·중앙값·거래건수. (2) 표본 0건이면 자료 없음이라 쓰고 가능한 원인 한 줄. (3) 5건 이상이면 급등·급매 주목 매물을 각 한 줄. 숫자는 주어진 것만 쓰고 과장 표현 금지.';\nasync function chat(sys, user) {\n  const r = await httpRaw('POST', 'https://api.openai.com/v1/chat/completions',\n    { Authorization: 'Bearer ' + OPENAI, 'Content-Type': 'application/json' },\n    JSON.stringify({ model: 'gpt-4o-mini', temperature: 0.2, max_tokens: 600,\n      messages: [{ role: 'system', content: sys }, { role: 'user', content: user }] }), 60000);\n  if (r.status !== 200) throw new Error('openai HTTP' + r.status + ' ' + r.body.slice(0, 200));\n  const j = JSON.parse(r.body);\n  return { text: j.choices[0].message.content, usage: j.usage };\n}\nfunction pick(xml, tag) {\n  const m = xml.match(new RegExp('<' + tag + '>([\\\\s\\\\S]*?)</' + tag + '>'));\n  return m ? m[1].trim() : '';\n}\nasync function tool_fetch_month(lawd, ymd) {\n  const url = 'https://apis.data.go.kr/1613000/RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev'\n    + '?serviceKey=' + DGK + '&LAWD_CD=' + encodeURIComponent(lawd)\n    + '&DEAL_YMD=' + encodeURIComponent(ymd) + '&numOfRows=30&pageNo=1';\n  const xml = await httpGet(url, 25000);\n  return 'resultCode=' + pick(xml, 'resultCode') + ', items~' + (xml.split('<item>').length - 1);\n}\nasync function tool_recall(lawd) {\n  const arr = await httpJson('GET',\n    SB_URL + '/rest/v1/agent_reports?region=like.' + encodeURIComponent(lawd) + '/*&status=eq.approved&order=created_at.desc&limit=2&select=region,final,created_at',\n    { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY }, undefined, 15000);\n  if (!arr.length) return '승인된 과거 리포트 없음';\n  return arr.map(x => '[' + x.created_at + '] ' + String(x.final || '').slice(0, 300)).join('\\n---\\n');\n}\nconst out = [];\nfor (const it of $input.all()) {\n  const p = it.json;\n  const t0 = Date.now();\n  const trace = [];\n  let usage = { prompt_tokens: 0, completion_tokens: 0 };\n  const sys = p.prompt_version === 'v2' ? SYS_V2 : SYS_V1;\n  const brief = '지역=' + p.lawd_cd + ' 연월=' + p.deal_ymd + (p.apt ? ' 단지=' + p.apt : '')\n    + '\\n[통계] ' + JSON.stringify(p.stats)\n    + '\\n[표본상위5] ' + JSON.stringify((p.rows || []).slice(0, 5))\n    + (p.memo ? '\\n[메모] ' + p.memo : '');\n    + '\\n[통계] ' + JSON.stringify(p.stats)\n    + '\\n[표본상위5] ' + JSON.stringify((p.rows || []).slice(0, 5))\n    + (p.memo ? '\\n[메모] ' + p.memo : '');\n  let draft = '';\n  for (let i = 0; i < 8; i++) {\n    const ask = i === 0\n      ? brief + '\\n\\n위 자료로 브리핑 초안을 써라. 전월 비교가 필요하면 TOOL:fetch_month:LAWD,YYYYMM 로 조회하고, 과거 리포트가 필요하면 TOOL:recall_reports 로 조회하라. 도구가 필요 없으면 바로 초안을 써라.'\n      : '관찰: ' + lastObs + '\\n위 결과를 반영해 다음 행동을 정하라. 초안이 완성됐으면 초안만 출력하고 TOOL을 부르지 마라.';\n    const r = await chat(sys, ask);\n    usage.prompt_tokens += (r.usage && r.usage.prompt_tokens) || 0;\n    usage.completion_tokens += (r.usage && r.usage.completion_tokens) || 0;\n    const line = (r.text || '').trim().split('\\n')[0] || '';\n    let lastObs = '';\n    if (/^TOOL:fetch_month:(\\S+)/.test(line)) {\n      const parts = (line.match(/^TOOL:fetch_month:(\\S+)/)[1] || '').split(',');\n      const a = parts[0], b = parts[1];\n      lastObs = await tool_fetch_month(a || p.lawd_cd, b || p.deal_ymd);\n      trace.push({ i, tool: 'fetch_month', obs: String(lastObs).slice(0, 200) });\n      continue;\n    }\n    if (/^TOOL:recall_reports/.test(line)) {\n      lastObs = await tool_recall(p.lawd_cd);\n      trace.push({ i, tool: 'recall_reports', obs: String(lastObs).slice(0, 200) });\n      continue;\n    }\n    draft = r.text;\n    trace.push({ i, tool: 'finish' });\n    break;\n  }\n  if (!draft) draft = '(초안 생성 실패 — 통계만 전달)';\n  const ms = Date.now() - t0;\n  const costKrw = Math.round(((usage.prompt_tokens * 0.15 + usage.completion_tokens * 0.6) / 1e6) * 1400 * 100) / 100;\n  out.push({ json: { ...p, draft, usage, trace, ms, costKrw } });\n}\nreturn out;",
+                "mode": "runOnceForAllItems"
+            },
+            "position": [
+                1060,
+                360
+            ],
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2
+        },
+        {
+            "id": "a1b2c3d4-0007-4000-8000-000000000007",
+            "name": "Save Pending",
+            "parameters": {
+                "jsCode": "// agent_reports(status=pending) + agent_runs(metrics) 저장 후 승인 URL 반환\nconst SB_URL = $env.SUPABASE_URL;\nconst SB_KEY = $env.SUPABASE_SERVICE_ROLE_KEY;\n// Code-node sandbox has no fetch/$helpers/process (task-runner vm).\n// Outbound HTTPS via allowlisted require('https') (NODE_FUNCTION_ALLOW_BUILTIN=https).\nconst https = require('https');\nfunction splitUrl(url) {\n  const m = url.match(/^https:\\/\\/([^/]+)(\\/[\\s\\S]*)?$/);\n  if (!m) throw new Error('bad url');\n  return { host: m[1], path: m[2] || '/' };\n}\nfunction httpRaw(method, url, headers, bodyStr, timeoutMs) {\n  const u = splitUrl(url);\n  return new Promise((resolve, reject) => {\n    const req = https.request({ method, hostname: u.host, path: u.path, headers: headers || {} }, (res) => {\n      let data = '';\n      res.setEncoding('utf8');\n      res.on('data', (c) => { data += c; });\n      res.on('end', () => resolve({ status: res.statusCode, body: data }));\n    });\n    req.on('error', reject);\n    req.setTimeout(timeoutMs || 25000, () => { req.destroy(new Error('timeout')); });\n    if (bodyStr !== undefined) req.write(bodyStr);\n    req.end();\n  });\n}\nasync function httpGet(url, timeoutMs) { const r = await httpRaw('GET', url, {}, undefined, timeoutMs); return r.body; }\nasync function httpJson(method, url, headers, bodyObj, timeoutMs) {\n  const r = await httpRaw(method, url, headers, bodyObj === undefined ? undefined : JSON.stringify(bodyObj), timeoutMs);\n  if (r.status >= 400) throw new Error('HTTP' + r.status + ' ' + String(r.body).slice(0, 200));\n  return r.body ? JSON.parse(r.body) : null;\n}\nconst PUB = $env.PUBLIC_BASE || 'http://localhost:5678';\nasync function sb(method, path, body) {\n  return httpJson(method, SB_URL + '/rest/v1/' + path,\n    { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'Content-Type': 'application/json', Prefer: 'return=representation' },\n    body || undefined, 15000);\n}\nconst out = [];\nfor (const it of $input.all()) {\n  const p = it.json;\n  const rep = await sb('POST', 'agent_reports', {\n    region: p.lawd_cd + '/' + p.deal_ymd + (p.apt ? '/' + p.apt : ''),\n    payload: { stats: p.stats, rows: (p.rows || []).slice(0, 20), trace: p.trace || [] },\n    draft: p.draft, status: 'pending'\n  });\n  const rid = Array.isArray(rep) ? rep[0].id : rep.id;\n  await sb('POST', 'agent_runs', {\n    scenario: p.scenario || 'manual', ms: p.ms,\n    prompt_tokens: p.usage.prompt_tokens, completion_tokens: p.usage.completion_tokens,\n    cost_krw: p.costKrw, status: 'pending_approval',\n    note: 'prompt=' + p.prompt_version + ' report=' + rid\n  });\n  const base = PUB + '/webhook/e1a2b3c4-0000-4000-8000-000000000002/webhookapprove/estate-approve?token=' + rid;\n  out.push({ json: {\n    status: 'pending_approval', report_id: rid,\n    approve_url: base + '&decision=approve',\n    reject_url: base + '&decision=reject',\n    draft_preview: String(p.draft).slice(0, 300),\n    usage: p.usage, ms: p.ms, costKrw: p.costKrw\n  }});\n}\nreturn out;",
+                "mode": "runOnceForAllItems"
+            },
+            "position": [
+                1280,
+                360
+            ],
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2
+        },
+        {
+            "id": "a1b2c3d4-0008-4000-8000-000000000008",
+            "name": "Respond Pending",
+            "parameters": {
+                "options": {},
+                "respondWith": "json",
+                "responseBody": "={{$json}}"
+            },
+            "position": [
+                1500,
+                360
+            ],
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1.1
+        }
+    ],
+    "settings": {
+        "executionOrder": "v1"
+    },
+    "staticData": null,
+    "id": "e1a2b3c4-0000-4000-8000-000000000001"
+}

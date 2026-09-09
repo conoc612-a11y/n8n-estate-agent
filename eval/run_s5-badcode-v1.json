@@ -1,0 +1,15 @@
+{
+  "status": "pending_approval",
+  "report_id": 7,
+  "approve_url": "http://localhost:5678/webhook/e1a2b3c4-0000-4000-8000-000000000002/webhookapprove/estate-approve?token=7&decision=approve",
+  "reject_url": "http://localhost:5678/webhook/e1a2b3c4-0000-4000-8000-000000000002/webhookapprove/estate-approve?token=7&decision=reject",
+  "draft_preview": "해당 지역(99999)에서 2025년 8월의 아파트 실거래 데이터는 0건으로, 자료가 없습니다.",
+  "usage": {
+    "prompt_tokens": 200,
+    "completion_tokens": 32
+  },
+  "ms": 979,
+  "costKrw": 0.07,
+  "_clientMs": 1244,
+  "_scenario": "s5-badcode-v1"
+}

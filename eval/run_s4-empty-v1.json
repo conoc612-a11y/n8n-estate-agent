@@ -1,0 +1,15 @@
+{
+  "status": "pending_approval",
+  "report_id": 6,
+  "approve_url": "http://localhost:5678/webhook/e1a2b3c4-0000-4000-8000-000000000002/webhookapprove/estate-approve?token=6&decision=approve",
+  "reject_url": "http://localhost:5678/webhook/e1a2b3c4-0000-4000-8000-000000000002/webhookapprove/estate-approve?token=6&decision=reject",
+  "draft_preview": "2025년 8월, 지역 11680의 '없는단지XYZ'에 대한 아파트 실거래 데이터는 0건으로 나타났습니다. 총 거래 건수는 128건이지만, 평균, 중앙값, 최소값, 최대값 모두 0으로 기록되어 자료가 없습니다.",
+  "usage": {
+    "prompt_tokens": 207,
+    "completion_tokens": 66
+  },
+  "ms": 1347,
+  "costKrw": 0.1,
+  "_clientMs": 1657,
+  "_scenario": "s4-empty-v1"
+}

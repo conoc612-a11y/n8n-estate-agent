@@ -1,0 +1,15 @@
+{
+  "status": "pending_approval",
+  "report_id": 9,
+  "approve_url": "http://localhost:5678/webhook/e1a2b3c4-0000-4000-8000-000000000002/webhookapprove/estate-approve?token=9&decision=approve",
+  "reject_url": "http://localhost:5678/webhook/e1a2b3c4-0000-4000-8000-000000000002/webhookapprove/estate-approve?token=9&decision=reject",
+  "draft_preview": "(1) 핵심 한 줄: 2025년 8월 송파구 아파트 평균가 169,773만원, 중앙값 150,000만원, 거래건수 100건.\n\n(2) 표본 0건이면 자료 없음: 자료가 없습니다. 최근 시장 상황이나 정책 변화로 인해 거래가 감소했을 가능성이 있습니다.\n\n(3) 5건 이상이면 급등·급매 주목 매물: \n- 급등 매물: 헬리오시티, 가락동, 84.98㎡, 276,000만원 (2025.8.29)\n- 급매 매물: 한신잠실코아, 신천동, 41.99㎡, 110,000만원 (2025.8.30)",
+  "usage": {
+    "prompt_tokens": 429,
+    "completion_tokens": 167
+  },
+  "ms": 2501,
+  "costKrw": 0.23,
+  "_clientMs": 2853,
+  "_scenario": "s2-songpa-v2"
+}
