@@ -77,4 +77,6 @@ curl "http://localhost:5678/webhook/e1a2b3c4-0000-4000-8000-000000000002/webhook
 - 터널 URL은 cloudflared 재시작 때마다 바뀐다. 바뀌면 `.env`의
   `PUBLIC_BASE`를 새 URL로 교체 → n8n 재시작 → 위 두 호출로 재실측한다.
   (이번에도 같은 절차를 밟았다.)
-- 에디터 비밀번호를 모르면 `npx n8n user-management:reset`으로 재설정한다.
+- 에디터는 오너 계정(이메일 conoc@naver.com, 비번 별도 보관)으로 잠겨 있다.
+  초기 상태가 주인 없는 공개 셋업 화면이었으므로 DB에 직접 계정을 심었다.
+  비번 분실 시 `npx n8n user-management:reset`.
