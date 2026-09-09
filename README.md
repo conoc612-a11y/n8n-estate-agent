@@ -67,8 +67,14 @@ curl "http://localhost:5678/webhook/e1a2b3c4-0000-4000-8000-000000000002/webhook
 
 승인 도달 10/10 · 승인→확정 2/2 (100%) · 평균 0.18원/건. 전부 통과.
 
-## 한계
+## 한계와 배포 (2026-09-09 실측)
 
-로컬 배포다. 외부에 공개하려면 터널(예: cloudflared)을 앞에 두고
-`PUBLIC_BASE`를 터널 URL로 바꿔 n8n을 재시작한 뒤, 승인 링크 1회를
-다시 눌러 확정 HTML까지 실측한다.
+- 공개 URL: `https://york-appliance-bill-seeking.trycloudflare.com`
+  (cloudflared quick tunnel → 로컬 n8n 5678).
+  터널 경유 실측: 브리핑 POST → `pending_approval` (report 14) →
+  승인 링크 → `확정됨` + Supabase `approved` (`eval/run_tunnel-verify.json`·`eval/approve_tunnel.html`).
+  에디터·REST는 오너 로그인 벽 뒤다 (터널 경유 `/rest/login` → 401).
+- 터널 URL은 cloudflared 재시작 때마다 바뀐다. 바뀌면 `.env`의
+  `PUBLIC_BASE`를 새 URL로 교체 → n8n 재시작 → 위 두 호출로 재실측한다.
+  (이번에도 같은 절차를 밟았다.)
+- 에디터 비밀번호를 모르면 `npx n8n user-management:reset`으로 재설정한다.

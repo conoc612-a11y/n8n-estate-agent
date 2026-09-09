@@ -53,4 +53,7 @@
 
 - `trace`는 report 13부터 `payload.trace`에 저장된다. 평가 10건(3~12)은 n8n Executions 목록에서 단계별 입출력을 확인해야 한다.
 - PRD의 월 $5 상한·25분 trial은 강제 로직이 아니라 운용 기준이다 (8회 반복·60초 OpenAI 타임아웃으로 무한루프만 차단). 강제 한도가 필요하면 Save Pending 앞에 누적 비용 조회 노드를 둔다.
-- 배포는 로컬 URL이다 (README 참조). 외부 공개는 터널+`PUBLIC_BASE` 교체 후 승인 링크 1회 재실측이 필요하다.
+- 배포는 quick tunnel 공개 URL이다 (README 참조). 터널 경유 실측 2026-09-09:
+  POST → report 14 `pending_approval` → 승인 링크 → `확정됨`+`approved`
+  (`eval/run_tunnel-verify.json`·`eval/approve_tunnel.html`). URL은
+  cloudflared 재시작 시 바뀌므로 바뀌면 `PUBLIC_BASE` 교체+재시작+재실측.

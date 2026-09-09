@@ -1,0 +1,13 @@
+{
+  "status": "pending_approval",
+  "report_id": 14,
+  "approve_url": "https://york-appliance-bill-seeking.trycloudflare.com/webhook/e1a2b3c4-0000-4000-8000-000000000002/webhookapprove/estate-approve?token=14&decision=approve",
+  "reject_url": "https://york-appliance-bill-seeking.trycloudflare.com/webhook/e1a2b3c4-0000-4000-8000-000000000002/webhookapprove/estate-approve?token=14&decision=reject",
+  "draft_preview": "(1) 핵심 한 줄: 2025년 8월 아파트 평균가 247,043천원, 중앙값 180,000천원, 거래건수 100건.\n\n(2) 표본 0건이면 자료 없음: 해당 지역의 거래 건수가 0건인 경우는 없으며, 현재 100건의 거래가 이루어졌습니다.\n\n(3) 5건 이상이면 급등·급매 주목 매물: \n- 급등 매물: 한신(개포), 52.73㎡, 284,000천원 (2025.8.5)\n- 급매 매물: 신성아파트101동, 59.67㎡, 160,000천원 (2025.8.30)",
+  "usage": {
+    "prompt_tokens": 422,
+    "completion_tokens": 165
+  },
+  "ms": 4135,
+  "costKrw": 0.23
+}
